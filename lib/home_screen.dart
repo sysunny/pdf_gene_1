@@ -1,8 +1,8 @@
-import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:printing/printing.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'pdf_service.dart';
 import 'app_constants.dart';
 import 'dart:ui' as ui;
@@ -33,39 +33,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    for (var k in _contentKeys) {
-      _keys[k] = GlobalKey();
-    }
-    // Capture after build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 500), _captureAll);
-    });
+    _keys.addEntries(_contentKeys.map((k) => MapEntry(k, GlobalKey())));
+    WidgetsBinding.instance.addPostFrameCallback((_) => Future.delayed(const Duration(milliseconds: 200), _captureAll));
   }
 
   Future<void> _captureAll() async {
-    Map<String, Uint8List> captured = {};
-    
-    for (var key in _contentKeys) {
-      final globalKey = _keys[key];
-      if (globalKey?.currentContext == null) continue;
-      
-      try {
-        final boundary = globalKey!.currentContext!.findRenderObject() as RenderRepaintBoundary;
-        final image = await boundary.toImage(pixelRatio: 5.0); // High quality
-        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData != null) {
-          captured[key] = byteData.buffer.asUint8List();
-        }
-      } catch (e) {
-        print('Error capturing $key: $e');
-      }
-    }
+    final results = await Future.wait(_contentKeys.map((key) async {
+      final ctx = _keys[key]?.currentContext;
+      if (ctx == null) return null;
+      final boundary = ctx.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      final img = await boundary.toImage(pixelRatio: 4.0);
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+      return bytes == null ? null : MapEntry(key, bytes.buffer.asUint8List());
+    }));
     
     setState(() {
-      _images = captured;
-      _ready = captured.isNotEmpty;
+      _images = Map.fromEntries(results.whereType<MapEntry<String, Uint8List>>());
+      _ready = _images.isNotEmpty;
     });
-    print('Captured ${captured.length} images');
   }
 
   @override
@@ -249,7 +235,11 @@ class PdfScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('PDF'), backgroundColor: Colors.teal),
-      body: PdfPreview(build: (_) => PdfGenerator.fromImages(images)),
+      body: PdfPreview(
+        canChangePageFormat: false,
+        canDebug: false,
+        build: (_) => PdfGenerator.fromImages(images),
+      ),
     );
   }
 }
