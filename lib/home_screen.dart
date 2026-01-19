@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:printing/printing.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'pdf_service.dart';
 import 'app_constants.dart';
 import 'dart:ui' as ui;
